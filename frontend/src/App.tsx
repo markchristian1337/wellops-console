@@ -1,35 +1,81 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState, useEffect } from "react";
+import "./App.css";
+
+import { fetchWells, type Well } from "./api/wells";
+import {
+  fetchAlerts,
+  type AlertStatus,
+  type PaginatedAlertsOut,
+} from "./api/alerts";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [wells, setWells] = useState<Well[]>([]);
+  const [alerts, setAlerts] = useState<PaginatedAlertsOut | null>(null);
+  const [status, setStatus] = useState<AlertStatus | null>(null);
+  const [offset, setOffset] = useState<number>(0);
+  const [limit, setLimit] = useState<number>(25);
+
+  const runWells = async () => {
+    try {
+      const res = await fetchWells();
+      setWells(res);
+      // console.log(res)
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const runAlerts = async () => {
+    try {
+      const res = status
+        ? await fetchAlerts({ status, limit, offset })
+        : await fetchAlerts({ limit, offset });
+      setAlerts(res);
+      // console.log(res);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    runWells();
+  }, []);
+
+  useEffect(() => {
+    runAlerts();
+  }, [status, limit, offset]);
+
+  // useEffect(() => {
+  //   console.log(alerts); // ✅ runs after state has actually updated
+  // }, [alerts]);
+
+  const listWells = wells.map(
+    (
+      well, //testing
+    ) => (
+      // The key prop is essential for performance and stability
+      <li key={well.id}>{well.name}</li>
+    ),
+  );
+
+  const listAlerts = alerts?.items.map((alert) => {
+    const wellName = wells.find((well) => well.id === alert.well_id)?.name;
+    return (
+      <>
+        <li key={alert.id}>
+          {wellName ?? "Unknown Well"} {alert.message} {alert.severity}
+          {alert.status}
+        </li>
+      </>
+    );
+  });
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      <ul>{listWells}</ul>
+      <ul>{listAlerts}</ul>
     </>
-  )
+  );
 }
 
-export default App
+export default App;
