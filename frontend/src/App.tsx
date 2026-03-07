@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import "./App.css";
 
 import { fetchWells, type Well } from "./api/wells";
@@ -15,7 +15,7 @@ function App() {
   const [offset, setOffset] = useState<number>(0);
   const [limit, setLimit] = useState<number>(25);
 
-  const runWells = async () => {
+  const loadWells = async () => {
     try {
       const res = await fetchWells();
       setWells(res);
@@ -25,7 +25,7 @@ function App() {
     }
   };
 
-  const runAlerts = async () => {
+  const loadAlerts = async () => {
     try {
       const res = status
         ? await fetchAlerts({ status, limit, offset })
@@ -38,42 +38,83 @@ function App() {
   };
 
   useEffect(() => {
-    runWells();
+    loadWells();
   }, []);
 
   useEffect(() => {
-    runAlerts();
+    loadAlerts();
   }, [status, limit, offset]);
 
   // useEffect(() => {
   //   console.log(alerts); // ✅ runs after state has actually updated
   // }, [alerts]);
 
-  const listWells = wells.map(
-    (
-      well, //testing
-    ) => (
-      // The key prop is essential for performance and stability
-      <li key={well.id}>{well.name}</li>
-    ),
-  );
+  const wellNameLookup = useMemo<Record<number, string>>(() => {
+    return Object.fromEntries(wells.map((well) => [well.id, well.name]));
+  }, [wells]);
 
   const listAlerts = alerts?.items.map((alert) => {
-    const wellName = wells.find((well) => well.id === alert.well_id)?.name;
+    const wellName = wellNameLookup[alert.well_id];
     return (
-      <>
-        <li key={alert.id}>
-          {wellName ?? "Unknown Well"} {alert.message} {alert.severity}
-          {alert.status}
-        </li>
-      </>
+      <li key={alert.id}>
+        {alert.id} {wellName ?? "Unknown Well"} {alert.message} {alert.severity}{" "}
+        {alert.status}
+      </li>
     );
   });
 
+  const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (value === "") setStatus(null);
+    else {
+      setStatus(value as AlertStatus);
+    }
+    setOffset(0);
+  };
+
+  const handleLimitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (value === "") setLimit(25);
+    else {
+      setLimit(parseInt(value));
+    }
+    setOffset(0);
+  };
+
+  const handlePrevPage = () => {
+    const newOffset = Math.max(offset - limit, 0);
+    setOffset(newOffset);
+  };
+
+  const handleNextPage = () => {
+    if (offset + limit < (alerts?.total ?? 0)) {
+      setOffset(offset + limit);
+    }
+  };
+
+  const statusOptions = ["open", "ack", "closed"];
+  const limitOptions = [5, 10, 25];
+
   return (
     <>
-      <ul>{listWells}</ul>
+      <select value={status ?? ""} onChange={handleStatusChange}>
+        <option value="">All</option>
+        {statusOptions.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+      <select value={limit} onChange={handleLimitChange}>
+        {limitOptions.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
       <ul>{listAlerts}</ul>
+      <button onClick={handlePrevPage}>Prev</button>
+      <button onClick={handleNextPage}>Next</button>
     </>
   );
 }
