@@ -10,6 +10,7 @@ import {
   type AlertStatus,
   type PaginatedAlertsOut,
 } from "./api/alerts";
+import AlertsTable from "./components/AlertsTable";
 
 function App() {
   const [wells, setWells] = useState<Well[]>([]);
@@ -26,6 +27,9 @@ function App() {
   const [createError, setCreateError] = useState<string | null>(null);
 
   const user = "gingomx";
+  const statusOptions = ["open", "ack", "closed"];
+  const limitOptions = [5, 10, 25];
+  const alertSeverityOptions = ["low", "medium", "high", "critical"];
 
   const wellNameLookup = useMemo<Record<number, string>>(() => {
     return Object.fromEntries(wells.map((well) => [well.id, well.name]));
@@ -79,27 +83,13 @@ function App() {
   //   console.log(alerts); // ✅ runs after state has actually updated
   // }, [alerts]);
 
-  const listAlerts =
-    alerts?.items.map((alert) => {
-      const wellName = wellNameLookup[alert.well_id] ?? "Unknown well";
-      return (
-        <tr key={alert.id}>
-          <td>{alert.id}</td>
-          <td>{wellName}</td>
-          <td>{alert.severity}</td>
-          <td>{alert.status}</td>
-          <td>{alert.message}</td>
-          <td>
-            {alert.status === "open" && (
-              <button onClick={() => handleAck(alert.id)}>Acknowledge</button>
-            )}
-            {alert.status === "ack" && (
-              <button onClick={() => handleClose(alert.id)}>Close</button>
-            )}
-          </td>
-        </tr>
-      );
-    }) ?? null;
+  const reloadAlerts = async () => {
+    const res = status
+      ? await fetchAlerts({ status, limit, offset })
+      : await fetchAlerts({ limit, offset });
+
+    setAlerts(res);
+  };
 
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
@@ -130,14 +120,6 @@ function App() {
     }
   };
 
-  const reloadAlerts = async () => {
-    const res = status
-      ? await fetchAlerts({ status, limit, offset })
-      : await fetchAlerts({ limit, offset });
-
-    setAlerts(res);
-  };
-
   const handleAck = async (id: number) => {
     try {
       await patchAlert({
@@ -163,37 +145,6 @@ function App() {
       console.error(error);
     }
   };
-
-  const statusOptions = ["open", "ack", "closed"];
-  const limitOptions = [5, 10, 25];
-  const alertSeverityOptions = ["low", "medium", "high", "critical"];
-
-  let alertsContent: React.ReactNode;
-
-  if (alertsLoading) {
-    alertsContent = (
-      <tr>
-        <td colSpan={6}>Loading alerts...</td>
-      </tr>
-    );
-  } else if (alertsError) {
-    alertsContent = (
-      <tr>
-        <td colSpan={6}>{alertsError}</td>
-      </tr>
-    );
-  } else if (alerts && alerts.items.length === 0) {
-    alertsContent = (
-      <tr>
-        <td colSpan={6}>No alerts found.</td>
-      </tr>
-    );
-  } else {
-    alertsContent = listAlerts;
-  }
-
-  const canGoPrev = offset > 0;
-  const canGoNext = offset + limit < (alerts?.total ?? 0);
 
   const closeCreateAlert = () => {
     setIsCreateOpen(false);
@@ -236,6 +187,9 @@ function App() {
       setCreateError("Failed to create alert.");
     }
   };
+
+  const canGoPrev = offset > 0;
+  const canGoNext = offset + limit < (alerts?.total ?? 0);
 
   return (
     <>
@@ -306,24 +260,14 @@ function App() {
           </button>
         </div>
       )}
-      <section>
-        <h2>Alerts</h2>
-
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Well</th>
-              <th>Severity</th>
-              <th>Status</th>
-              <th>Message</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>{alertsContent}</tbody>
-        </table>
-      </section>
-
+      <AlertsTable
+        alerts={alerts}
+        alertsLoading={alertsLoading}
+        alertsError={alertsError}
+        wellNameLookup={wellNameLookup}
+        onAck={handleAck}
+        onClose={handleClose}
+      />
       <button onClick={handlePrevPage} disabled={!canGoPrev}>
         Prev
       </button>
